@@ -60,56 +60,67 @@
   <input id="sl" type="range" min="0" max="59" value="59"/>
 </footer>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="data.js"></script>
 <script>
+let PTS=[], P26=[], BND=null;
 const BASE = Date.UTC(2025,9,1);
 function fmt(off){ return new Date(BASE+off*864e5).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
 function col(f){ return f>10?"#8f2d1c": f>=4?"#c45c3e":"#c9a27a"; }
-const map = L.map("map",{zoomControl:true});
-const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery &copy; Esri"});
-const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"&copy; OSM &copy; CARTO"});
-const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:18});
-sat.addTo(map); labels.addTo(map);
-const boundary = L.geoJSON(BND,{style:{color:"#eceae4",weight:2,fillOpacity:0.04}}).addTo(map);
-map.fitBounds(boundary.getBounds().pad(0.06));
-const g25 = L.layerGroup().addTo(map);
-const g26 = L.layerGroup().addTo(map);
-function draw(){
-  const max = +document.getElementById("sl").value;
-  document.getElementById("dt").textContent = fmt(max);
-  g25.clearLayers(); g26.clearLayers();
-  let n=0,sum=0,hi=0;
-  if (document.getElementById("s25").checked){
-    PTS.forEach(p=>{
-      if (p.day>max) return;
-      n++; sum+=p.frp; if(p.frp>10) hi++;
-      L.circleMarker([p.lat,p.lon],{radius:Math.max(4,Math.min(11,3.5+p.frp/5)),color:"#0c0d0b",weight:.6,fillColor:col(p.frp),fillOpacity:.88})
-        .bindPopup(p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g25);
-    });
+
+async function main(){
+  const [a,b,c] = await Promise.all([
+    fetch("pts.json").then(r=>r.json()),
+    fetch("p26.json").then(r=>r.json()),
+    fetch("bnd.json").then(r=>r.json()),
+  ]);
+  PTS=a; P26=b; BND=c;
+  const map = L.map("map",{zoomControl:true});
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery &copy; Esri"});
+  const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"&copy; OSM &copy; CARTO"});
+  const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:18});
+  sat.addTo(map); labels.addTo(map);
+  const boundary = L.geoJSON(BND,{style:{color:"#eceae4",weight:2,fillOpacity:0.04}}).addTo(map);
+  map.fitBounds(boundary.getBounds().pad(0.06));
+  const g25 = L.layerGroup().addTo(map);
+  const g26 = L.layerGroup().addTo(map);
+  function draw(){
+    const max = +document.getElementById("sl").value;
+    document.getElementById("dt").textContent = fmt(max);
+    g25.clearLayers(); g26.clearLayers();
+    let n=0,sum=0,hi=0;
+    if (document.getElementById("s25").checked){
+      PTS.forEach(p=>{
+        if (p.day>max) return;
+        n++; sum+=p.frp; if(p.frp>10) hi++;
+        L.circleMarker([p.lat,p.lon],{radius:Math.max(4,Math.min(11,3.5+p.frp/5)),color:"#0c0d0b",weight:.6,fillColor:col(p.frp),fillOpacity:.88})
+          .bindPopup(p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g25);
+      });
+    }
+    if (document.getElementById("s26").checked){
+      P26.forEach(p=>{
+        L.circleMarker([p.lat,p.lon],{radius:8,color:"#8eb4c4",weight:2,fillColor:"#0c0d0b",fillOpacity:.55})
+          .bindPopup("2026 · "+p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g26);
+      });
+    }
+    document.getElementById("n").textContent = n;
+    document.getElementById("avg").textContent = n?(sum/n).toFixed(1):"0";
+    document.getElementById("hi").textContent = hi;
+    if (document.getElementById("sb").checked){ if(!map.hasLayer(boundary)) boundary.addTo(map); }
+    else if (map.hasLayer(boundary)) map.removeLayer(boundary);
   }
-  if (document.getElementById("s26").checked){
-    P26.forEach(p=>{
-      L.circleMarker([p.lat,p.lon],{radius:8,color:"#8eb4c4",weight:2,fillColor:"#0c0d0b",fillOpacity:.55})
-        .bindPopup("2026 · "+p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g26);
-    });
-  }
-  document.getElementById("n").textContent = n;
-  document.getElementById("avg").textContent = n?(sum/n).toFixed(1):"0";
-  document.getElementById("hi").textContent = hi;
-  if (document.getElementById("sb").checked){ if(!map.hasLayer(boundary)) boundary.addTo(map); }
-  else if (map.hasLayer(boundary)) map.removeLayer(boundary);
+  ["sl","s25","s26","sb"].forEach(id=>document.getElementById(id).addEventListener("input",draw));
+  document.getElementById("sat").onclick=()=>{ sat.addTo(map); labels.addTo(map); map.removeLayer(streets); document.getElementById("sat").classList.add("on"); document.getElementById("str").classList.remove("on"); };
+  document.getElementById("str").onclick=()=>{ streets.addTo(map); map.removeLayer(sat); map.removeLayer(labels); document.getElementById("str").classList.add("on"); document.getElementById("sat").classList.remove("on"); };
+  document.getElementById("dl").onclick=()=>{
+    const rows=["season,latitude,longitude,date,frp,confidence,satellite"];
+    const max=+document.getElementById("sl").value;
+    if(document.getElementById("s25").checked) PTS.forEach(p=>{ if(p.day<=max) rows.push(["2025",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")); });
+    if(document.getElementById("s26").checked) P26.forEach(p=>rows.push(["2026",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")));
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.join(String.fromCharCode(10))],{type:"text/csv"})); a.download="multan-hotspots.csv"; a.click();
+  };
+  window.__draw = draw;
+  draw();
 }
-["sl","s25","s26","sb"].forEach(id=>document.getElementById(id).addEventListener("input",draw));
-document.getElementById("sat").onclick=()=>{ sat.addTo(map); labels.addTo(map); map.removeLayer(streets); document.getElementById("sat").classList.add("on"); document.getElementById("str").classList.remove("on"); };
-document.getElementById("str").onclick=()=>{ streets.addTo(map); map.removeLayer(sat); map.removeLayer(labels); document.getElementById("str").classList.add("on"); document.getElementById("sat").classList.remove("on"); };
-document.getElementById("dl").onclick=()=>{
-  const rows=["season,latitude,longitude,date,frp,confidence,satellite"];
-  const max=+document.getElementById("sl").value;
-  if(document.getElementById("s25").checked) PTS.forEach(p=>{ if(p.day<=max) rows.push(["2025",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")); });
-  if(document.getElementById("s26").checked) P26.forEach(p=>rows.push(["2026",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")));
-  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.join(String.fromCharCode(10))],{type:"text/csv"})); a.download="multan-hotspots.csv"; a.click();
-};
-draw();
+main().catch(e=>{ console.error(e); document.getElementById("n").textContent="!"; });
 </script>
 </body>
 </html>
