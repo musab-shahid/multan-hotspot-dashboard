@@ -6,26 +6,98 @@
 <title>Multan residue-burning hotspots</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  :root { --bg:#0c0d0b; --fg:#eceae4; --muted:#9a958a; --line:rgba(236,234,228,.14); --panel:rgba(12,13,11,.88); }
+  :root {
+    --bg:#0c0d0b; --fg:#eceae4; --muted:#9a958a;
+    --line:rgba(236,234,228,.16); --panel:rgba(12,13,11,.92);
+    --accent:#c45c3e; --hi:#8f2d1c; --lo:#c9a27a; --live:#8eb4c4;
+  }
   * { box-sizing: border-box; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family: "Segoe UI", system-ui, sans-serif; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:"Segoe UI", system-ui, sans-serif; }
   #map { position:absolute; inset:0; }
-  header, footer { position:absolute; z-index:500; left:12px; right:12px; }
-  header { top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; pointer-events:none; }
-  header > *, footer { pointer-events:auto; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; backdrop-filter: blur(8px); }
-  h1 { margin:0; font-size:1.15rem; font-weight:600; }
-  .sub { margin:4px 0 0; color:var(--muted); font-size:.78rem; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  button { height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:#161714; color:var(--fg); cursor:pointer; font-size:13px; }
-  button.on { background:#c8ccd4; color:#0c0d0b; border-color:transparent; }
+  .leaflet-top.leaflet-left { top: auto; bottom: 148px; left: 12px; }
+  .leaflet-control-zoom { border: none !important; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+  .leaflet-control-zoom a {
+    background: var(--panel) !important; color: var(--fg) !important;
+    border: 1px solid var(--line) !important; width: 32px !important; height: 32px !important;
+    line-height: 30px !important; font-size: 16px !important;
+  }
+  .leaflet-control-zoom a:hover { background: #1c1d1a !important; }
+  .leaflet-control-attribution {
+    background: rgba(12,13,11,.75) !important; color: var(--muted) !important;
+    font-size: 10px !important; max-width: 42vw;
+  }
+  .leaflet-control-attribution a { color: #b8c4c0 !important; }
+
+  header, footer { position:absolute; z-index:1000; left:12px; right:12px; pointer-events:none; }
+  header > *, footer > * { pointer-events:auto; }
+  header {
+    top:12px; display:flex; gap:10px; flex-wrap:wrap;
+    align-items:flex-start; justify-content:space-between;
+  }
   footer { bottom:12px; }
-  .stats { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; }
-  .n { font-size:1.35rem; font-weight:650; font-variant-numeric: tabular-nums; }
-  .l { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
-  label { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-right:12px; }
-  input[type=range] { width:100%; accent-color:#c45c3e; }
-  @media (max-width:640px) { .stats { grid-template-columns: 1fr 1fr; } .hide-sm { display:none; } }
+  .card {
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:12px 14px; backdrop-filter: blur(10px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+  }
+  h1 { margin:0; font-size:1.12rem; font-weight:600; letter-spacing:-0.01em; }
+  .sub { margin:4px 0 0; color:var(--muted); font-size:.76rem; line-height:1.35; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button {
+    height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--line);
+    background:#161714; color:var(--fg); cursor:pointer; font-size:13px;
+  }
+  button:hover { border-color: rgba(236,234,228,.28); }
+  button.on { background:#c8ccd4; color:#0c0d0b; border-color:transparent; }
+
+  .footer-grid {
+    display:grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap:14px;
+    align-items:end;
+  }
+  .stats { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+  .stat {
+    background: rgba(236,234,228,.04);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .n { font-size:1.35rem; font-weight:650; font-variant-numeric: tabular-nums; line-height:1.1; }
+  .l { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+
+  .legend-block { display:flex; flex-direction:column; gap:8px; }
+  .legend-title { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+  .legend-row { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; }
+  .swatch {
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--fg);
+  }
+  .dot {
+    width:11px; height:11px; border-radius:50%; border:1px solid #0c0d0b;
+    display:inline-block; flex-shrink:0;
+  }
+  .ring {
+    width:12px; height:12px; border-radius:50%; border:2px solid var(--live);
+    background: transparent; display:inline-block; flex-shrink:0;
+  }
+  .line {
+    width:16px; height:0; border-top:2px solid #eceae4; display:inline-block;
+  }
+  .controls { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; }
+  label { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; }
+  input[type=range] { width:100%; accent-color:var(--accent); margin-top:4px; }
+  .slider-meta {
+    display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px;
+  }
+  @media (max-width:820px) {
+    .footer-grid { grid-template-columns: 1fr; }
+    .leaflet-top.leaflet-left { bottom: 220px; }
+  }
+  @media (max-width:640px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .hide-sm { display:none; }
+    header { right: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -42,22 +114,42 @@
     <button id="dl">Download CSV</button>
   </div>
 </header>
-<footer class="card">
-  <div class="stats">
-    <div><div class="n" id="n">0</div><div class="l">Hotspots in view</div></div>
-    <div><div class="n" id="avg">0</div><div class="l">Avg FRP (MW)</div></div>
-    <div><div class="n" id="hi">0</div><div class="l">High intensity</div></div>
-    <div><div class="n">11</div><div class="l">2026 inside Multan</div></div>
+<footer>
+  <div class="card">
+    <div class="footer-grid">
+      <div>
+        <div class="stats">
+          <div class="stat"><div class="n" id="n">0</div><div class="l">Hotspots in view</div></div>
+          <div class="stat"><div class="n" id="avg">0</div><div class="l">Avg FRP (MW)</div></div>
+          <div class="stat"><div class="n" id="hi">0</div><div class="l">High intensity</div></div>
+          <div class="stat"><div class="n">11</div><div class="l">2026 inside Multan</div></div>
+        </div>
+        <div class="controls">
+          <label><input type="checkbox" id="s25" checked> 2025 season</label>
+          <label><input type="checkbox" id="s26" checked> 2026 live</label>
+          <label><input type="checkbox" id="sb" checked> Boundary</label>
+        </div>
+        <div class="slider-meta">
+          <span>Season replay through</span>
+          <span id="dt"></span>
+        </div>
+        <input id="sl" type="range" min="0" max="59" value="59"/>
+      </div>
+      <div class="legend-block">
+        <div class="legend-title">Legend</div>
+        <div class="legend-row">
+          <span class="swatch"><span class="dot" style="background:var(--lo)"></span> FRP &lt; 4 MW</span>
+          <span class="swatch"><span class="dot" style="background:var(--accent)"></span> FRP 4–10 MW</span>
+          <span class="swatch"><span class="dot" style="background:var(--hi)"></span> FRP &gt; 10 MW</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch"><span class="ring"></span> 2026 NRT live</span>
+          <span class="swatch"><span class="line"></span> Multan boundary</span>
+        </div>
+        <p class="sub" style="margin-top:4px">Points = VIIRS fire detections clipped to Multan District. Slider filters the 2025 season by day.</p>
+      </div>
+    </div>
   </div>
-  <div style="margin-top:10px">
-    <label><input type="checkbox" id="s25" checked> 2025 season</label>
-    <label><input type="checkbox" id="s26" checked> 2026 live</label>
-    <label><input type="checkbox" id="sb" checked> Boundary</label>
-  </div>
-  <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:12px; color:var(--muted)">
-    <span>Season replay through</span><span id="dt"></span>
-  </div>
-  <input id="sl" type="range" min="0" max="59" value="59"/>
 </footer>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -75,8 +167,8 @@ async function main(){
   PTS=a.map(r=>({lat:r[0],lon:r[1],day:r[2],frp:r[3],sat:sats[r[4]]||"N20",conf:r[5]||"n",date:new Date(Date.UTC(2025,9,1)+r[2]*864e5).toISOString().slice(0,10)}));
   P26=b; BND=c;
   const map = L.map("map",{zoomControl:true});
-  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery &copy; Esri"});
-  const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"&copy; OSM &copy; CARTO"});
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery © Esri"});
+  const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"© OSM © CARTO"});
   const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:18});
   sat.addTo(map); labels.addTo(map);
   const boundary = L.geoJSON(BND,{style:{color:"#eceae4",weight:2,fillOpacity:0.04}}).addTo(map);
