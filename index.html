@@ -1,1 +1,115 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Multan residue-burning hotspots</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root { --bg:#0c0d0b; --fg:#eceae4; --muted:#9a958a; --line:rgba(236,234,228,.14); --panel:rgba(12,13,11,.88); }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family: "Segoe UI", system-ui, sans-serif; }
+  #map { position:absolute; inset:0; }
+  header, footer { position:absolute; z-index:500; left:12px; right:12px; }
+  header { top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; pointer-events:none; }
+  header > *, footer { pointer-events:auto; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; backdrop-filter: blur(8px); }
+  h1 { margin:0; font-size:1.15rem; font-weight:600; }
+  .sub { margin:4px 0 0; color:var(--muted); font-size:.78rem; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button { height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:#161714; color:var(--fg); cursor:pointer; font-size:13px; }
+  button.on { background:#c8ccd4; color:#0c0d0b; border-color:transparent; }
+  footer { bottom:12px; }
+  .stats { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; }
+  .n { font-size:1.35rem; font-weight:650; font-variant-numeric: tabular-nums; }
+  .l { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  label { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-right:12px; }
+  input[type=range] { width:100%; accent-color:#c45c3e; }
+  @media (max-width:640px) { .stats { grid-template-columns: 1fr 1fr; } .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<header>
+  <div class="card">
+    <div class="sub">EPCCD early-warning prototype</div>
+    <h1>Multan residue-burning hotspots</h1>
+    <p class="sub hide-sm">NASA FIRMS VIIRS · 389 detections Oct–Nov 2025 · 11 inside Multan in early Oct 2026</p>
+  </div>
+  <div class="row">
+    <button id="sat" class="on">Satellite</button>
+    <button id="str">Streets</button>
+    <button id="dl">Download CSV</button>
+  </div>
+</header>
+<footer class="card">
+  <div class="stats">
+    <div><div class="n" id="n">0</div><div class="l">Hotspots in view</div></div>
+    <div><div class="n" id="avg">0</div><div class="l">Avg FRP (MW)</div></div>
+    <div><div class="n" id="hi">0</div><div class="l">High intensity</div></div>
+    <div><div class="n">11</div><div class="l">2026 inside Multan</div></div>
+  </div>
+  <div style="margin-top:10px">
+    <label><input type="checkbox" id="s25" checked> 2025 season</label>
+    <label><input type="checkbox" id="s26" checked> 2026 live</label>
+    <label><input type="checkbox" id="sb" checked> Boundary</label>
+  </div>
+  <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:12px; color:var(--muted)">
+    <span>Season replay through</span><span id="dt"></span>
+  </div>
+  <input id="sl" type="range" min="0" max="59" value="59"/>
+</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script>
+const BASE = Date.UTC(2025,9,1);
+function fmt(off){ return new Date(BASE+off*864e5).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
+function col(f){ return f>10?"#8f2d1c": f>=4?"#c45c3e":"#c9a27a"; }
+const map = L.map("map",{zoomControl:true});
+const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery &copy; Esri"});
+const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"&copy; OSM &copy; CARTO"});
+const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:18});
+sat.addTo(map); labels.addTo(map);
+const boundary = L.geoJSON(BND,{style:{color:"#eceae4",weight:2,fillOpacity:0.04}}).addTo(map);
+map.fitBounds(boundary.getBounds().pad(0.06));
+const g25 = L.layerGroup().addTo(map);
+const g26 = L.layerGroup().addTo(map);
+function draw(){
+  const max = +document.getElementById("sl").value;
+  document.getElementById("dt").textContent = fmt(max);
+  g25.clearLayers(); g26.clearLayers();
+  let n=0,sum=0,hi=0;
+  if (document.getElementById("s25").checked){
+    PTS.forEach(p=>{
+      if (p.day>max) return;
+      n++; sum+=p.frp; if(p.frp>10) hi++;
+      L.circleMarker([p.lat,p.lon],{radius:Math.max(4,Math.min(11,3.5+p.frp/5)),color:"#0c0d0b",weight:.6,fillColor:col(p.frp),fillOpacity:.88})
+        .bindPopup(p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g25);
+    });
+  }
+  if (document.getElementById("s26").checked){
+    P26.forEach(p=>{
+      L.circleMarker([p.lat,p.lon],{radius:8,color:"#8eb4c4",weight:2,fillColor:"#0c0d0b",fillOpacity:.55})
+        .bindPopup("2026 · "+p.date+" · FRP "+p.frp+" MW · "+p.sat).addTo(g26);
+    });
+  }
+  document.getElementById("n").textContent = n;
+  document.getElementById("avg").textContent = n?(sum/n).toFixed(1):"0";
+  document.getElementById("hi").textContent = hi;
+  if (document.getElementById("sb").checked){ if(!map.hasLayer(boundary)) boundary.addTo(map); }
+  else if (map.hasLayer(boundary)) map.removeLayer(boundary);
+}
+["sl","s25","s26","sb"].forEach(id=>document.getElementById(id).addEventListener("input",draw));
+document.getElementById("sat").onclick=()=>{ sat.addTo(map); labels.addTo(map); map.removeLayer(streets); document.getElementById("sat").classList.add("on"); document.getElementById("str").classList.remove("on"); };
+document.getElementById("str").onclick=()=>{ streets.addTo(map); map.removeLayer(sat); map.removeLayer(labels); document.getElementById("str").classList.add("on"); document.getElementById("sat").classList.remove("on"); };
+document.getElementById("dl").onclick=()=>{
+  const rows=["season,latitude,longitude,date,frp,confidence,satellite"];
+  const max=+document.getElementById("sl").value;
+  if(document.getElementById("s25").checked) PTS.forEach(p=>{ if(p.day<=max) rows.push(["2025",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")); });
+  if(document.getElementById("s26").checked) P26.forEach(p=>rows.push(["2026",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")));
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.join(String.fromCharCode(10))],{type:"text/csv"})); a.download="multan-hotspots.csv"; a.click();
+};
+draw();
+</script>
+</body>
+</html>
