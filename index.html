@@ -65,14 +65,15 @@ let PTS=[], P26=[], BND=null;
 const BASE = Date.UTC(2025,9,1);
 function fmt(off){ return new Date(BASE+off*864e5).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
 function col(f){ return f>10?"#8f2d1c": f>=4?"#c45c3e":"#c9a27a"; }
-
 async function main(){
   const [a,b,c] = await Promise.all([
-    fetch("pts.json").then(r=>r.json()),
+    fetch("pts_compact.json").then(r=>r.json()),
     fetch("p26.json").then(r=>r.json()),
     fetch("bnd.json").then(r=>r.json()),
   ]);
-  PTS=a; P26=b; BND=c;
+  const sats=["SNPP","N20","N21"];
+  PTS=a.map(r=>({lat:r[0],lon:r[1],day:r[2],frp:r[3],sat:sats[r[4]]||"N20",conf:r[5]||"n",date:new Date(Date.UTC(2025,9,1)+r[2]*864e5).toISOString().slice(0,10)}));
+  P26=b; BND=c;
   const map = L.map("map",{zoomControl:true});
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18, attribution:"Imagery &copy; Esri"});
   const streets = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19, attribution:"&copy; OSM &copy; CARTO"});
@@ -117,7 +118,6 @@ async function main(){
     if(document.getElementById("s26").checked) P26.forEach(p=>rows.push(["2026",p.lat,p.lon,p.date,p.frp,p.conf,p.sat].join(",")));
     const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.join(String.fromCharCode(10))],{type:"text/csv"})); a.download="multan-hotspots.csv"; a.click();
   };
-  window.__draw = draw;
   draw();
 }
 main().catch(e=>{ console.error(e); document.getElementById("n").textContent="!"; });
